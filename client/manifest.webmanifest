@@ -1,0 +1,9 @@
+{
+  "name": "Tidal Fortune",
+  "short_name": "Tidal Fortune",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#020814",
+  "theme_color": "#020814"
+}

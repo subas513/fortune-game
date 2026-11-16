@@ -1,0 +1,20 @@
+{
+  "name": "tidal-fortune",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Multiplayer fish-table arcade game server + client, with agent/admin API",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "dev": "node --watch server/src/index.js",
+    "seed": "node server/src/seed.js",
+    "prune-rounds": "node server/src/prune.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.0"
+  }
+}
