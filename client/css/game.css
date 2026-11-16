@@ -12,9 +12,11 @@ html, body { cursor: url(/img/cursors/arrow.svg) 3 2, default; }
 .tile, .profile, .remember, .eye-btn, .tabs button { cursor: url(/img/cursors/pointer.svg) 3 2, pointer !important; }
 input { cursor: text; }
 
-/* Fixed 1280x720 stage, letterboxed and scaled by JS */
+/* Fixed 1280x720 stage, letterboxed and scaled. --stage-scale is set by a tiny
+   inline script before first paint, then kept up to date by JS on resize. */
 #stage {
   position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px;
+  transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
   transform-origin: 50% 50%; overflow: hidden; background: #020814;
 }
 #game { position: absolute; inset: 0; width: 1280px; height: 720px; display: block; cursor: url(/img/cursors/arrow.svg) 3 2, default; }

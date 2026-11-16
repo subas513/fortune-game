@@ -10,6 +10,14 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <title>Tidal Fortune</title>
   <link rel="stylesheet" href="/css/game.css" />
+  <script>
+    // Scale the fixed 1280x720 stage before the first paint, so a hard refresh
+    // never shows it uncentered while the ES modules are still downloading.
+    (function () {
+      var w = window.innerWidth || 1280, h = window.innerHeight || 720;
+      document.documentElement.style.setProperty('--stage-scale', Math.min(w / 1280, h / 720));
+    })();
+  </script>
 </head>
 <body>
   <div id="stage">

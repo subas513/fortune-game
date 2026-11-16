@@ -22,6 +22,7 @@ function fit() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   pxScale = scale * dpr;
   stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  document.documentElement.style.setProperty('--stage-scale', scale);
   canvas.width = Math.round(W * pxScale);
   canvas.height = Math.round(H * pxScale);
 }
@@ -327,32 +328,46 @@ const KICK_TEXT = {
   session_expired: 'Your session has expired. Please log in again.',
 };
 
-function connect(token) {
+// `initial: true` is used during boot: the loading screen stays up until the
+// socket is authenticated, and the resolved promise hands back the server's hello.
+function connect(token, { initial = false } = {}) {
   app.net?.close();
   const net = new Net(token);
   app.net = net;
   let rejoinRoom = null;
+  let restoringSession = initial;
+  let settleInitial;
+  const initialReady = initial ? new Promise((resolve) => { settleInitial = resolve; }) : null;
+  const finishInitial = (result) => {
+    restoringSession = false;
+    if (!settleInitial) return;
+    settleInitial(result);
+    settleInitial = null;
+  };
 
   net.on('hello', (m) => {
     app.player = m.player;
     app.rooms = m.rooms;
     $('reconnect').classList.add('hidden');
+    if (initial) { finishInitial({ ok: true, hello: m }); return; }
     if (rejoinRoom) { net.send({ t: 'join', room: rejoinRoom }); rejoinRoom = null; return; }
-    enterLobby();
-    const ps = m.pendingSpin;
-    if (ps) {
-      // A spin finished while the player was away; the server already settled it.
-      const name = app.rooms.find((r) => r.id === ps.roomId)?.name || 'a slot machine';
-      app.modal(ps.win ? `Your last spin on ${name} finished while you were away. You won ${fmt(ps.win)}!` : `Your last spin on ${name} finished while you were away. No win that time.`);
-      net.send({ t: 'spin_ack', rid: ps.rid });
-    }
+    afterHello(m);
   });
-  net.on('authfail', (m) => { clearToken(); toLogin(m.reason === 'account_frozen' ? KICK_TEXT.account_frozen : null); });
-  net.on('kicked', (m) => { clearToken(); toLogin(KICK_TEXT[m.reason] || 'You have been disconnected.'); });
+  net.on('authfail', (m) => {
+    finishInitial({ ok: false });
+    clearToken();
+    toLogin(m.reason === 'account_frozen' ? KICK_TEXT.account_frozen : null);
+  });
+  net.on('kicked', (m) => {
+    finishInitial({ ok: false });
+    clearToken();
+    toLogin(KICK_TEXT[m.reason] || 'You have been disconnected.');
+  });
   net.on('disconnected', () => {
     if (app.currentRoom) rejoinRoom = app.currentRoom;
     endScene();
-    $('reconnect').classList.remove('hidden');
+    // During boot the loading screen stays up and the client retries quietly.
+    if (!restoringSession) $('reconnect').classList.remove('hidden');
   });
   net.on('rooms', (m) => { app.rooms = m.rooms; renderTiles(); });
   net.on('wallet', (m) => { app.player.balance = m.bal; updateLobbyBalance(); if (!app.scene) app.toast(`Balance updated: ${fmt(m.bal)}`); });
@@ -360,6 +375,19 @@ function connect(token) {
   net.on('joined', (m) => startScene(m));
   net.on('left', (m) => { app.player.balance = m.bal; endScene(); enterLobby(); });
   net.connect();
+  return initialReady;
+}
+
+// Runs once the socket is authenticated: show the lobby, then report any spin
+// that settled while the player was away.
+function afterHello(m) {
+  enterLobby();
+  const ps = m.pendingSpin;
+  if (ps) {
+    const name = app.rooms.find((r) => r.id === ps.roomId)?.name || 'a slot machine';
+    app.modal(ps.win ? `Your last spin on ${name} finished while you were away. You won ${fmt(ps.win)}!` : `Your last spin on ${name} finished while you were away. No win that time.`);
+    app.net.send({ t: 'spin_ack', rid: ps.rid });
+  }
 }
 
 function enterLobby() {
@@ -557,12 +585,19 @@ function frame(now) {
   await new Promise((r) => setTimeout(r, 0));
   app.caustics = buildCaustics();
   ambient = new AmbientScene();
-  step(1, 'Ready!');
-  await new Promise((r) => setTimeout(r, 250));
+  // A stored session is restored under the loading screen, so a refresh goes
+  // straight from the progress bar into the lobby with no "Reconnecting…" flash.
   const token = storedToken();
   if (token) {
-    showScreen(null);
-    $('reconnect').classList.remove('hidden');
-    connect(token);
-  } else toLogin();
+    step(0.9, 'Connecting to the table…');
+    const res = await connect(token, { initial: true });
+    if (!res?.ok) return; // auth failed: toLogin() has already taken over
+    step(1, 'Ready!');
+    await new Promise((r) => setTimeout(r, 150));
+    afterHello(res.hello);
+  } else {
+    step(1, 'Ready!');
+    await new Promise((r) => setTimeout(r, 250));
+    toLogin();
+  }
 })();
