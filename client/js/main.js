@@ -109,6 +109,11 @@ function showScreen(id) {
   for (const s of ['loading', 'login', 'lobby']) $(s).classList.toggle('hidden', s !== id);
 }
 
+function setLoading(p, msg) {
+  $('loadfill').style.width = `${Math.round(p * 100)}%`;
+  $('loadtext').textContent = msg;
+}
+
 // ---------------------------------------------------------------------------
 // Ambient scene behind login/lobby: client-only fish drifting over the reef
 // ---------------------------------------------------------------------------
@@ -265,7 +270,7 @@ $('loginForm').addEventListener('submit', async (e) => {
     $('lp').value = '';
     setPasswordVisible(false);
     sfx.coin();
-    connect(token);
+    await enterWithToken(token);
   } catch (err) {
     $('loginErr').textContent = err.message;
     sfx.error();
@@ -388,6 +393,22 @@ function afterHello(m) {
     app.modal(ps.win ? `Your last spin on ${name} finished while you were away. You won ${fmt(ps.win)}!` : `Your last spin on ${name} finished while you were away. No win that time.`);
     app.net.send({ t: 'spin_ack', rid: ps.rid });
   }
+}
+
+// Restores a session under the loading screen. Used for a stored token at boot
+// and right after a successful login, so slow networks (e.g. 3G WebSocket
+// handshakes) still show progress and retry quietly instead of appearing stuck.
+async function enterWithToken(token) {
+  showScreen('loading');
+  setLoading(0.9, 'Connecting to the table…');
+  const slow = setTimeout(() => setLoading(0.95, 'Still connecting… check your connection.'), 8000);
+  const res = await connect(token, { initial: true });
+  clearTimeout(slow);
+  if (!res?.ok) return false; // auth failed: toLogin() has already taken over
+  setLoading(1, 'Ready!');
+  await new Promise((r) => setTimeout(r, 150));
+  afterHello(res.hello);
+  return true;
 }
 
 function enterLobby() {
@@ -577,8 +598,7 @@ function frame(now) {
 // ---------------------------------------------------------------------------
 (async function boot() {
   requestAnimationFrame(frame);
-  const fill = $('loadfill'), text = $('loadtext');
-  const step = (p, msg) => { fill.style.width = `${Math.round(p * 100)}%`; text.textContent = msg; };
+  const step = setLoading;
   step(0.02, 'Summoning sea creatures…');
   await buildSprites((p) => step(0.05 + p * 0.75, 'Summoning sea creatures…'));
   step(0.85, 'Lighting the reef…');
@@ -589,12 +609,7 @@ function frame(now) {
   // straight from the progress bar into the lobby with no "Reconnecting…" flash.
   const token = storedToken();
   if (token) {
-    step(0.9, 'Connecting to the table…');
-    const res = await connect(token, { initial: true });
-    if (!res?.ok) return; // auth failed: toLogin() has already taken over
-    step(1, 'Ready!');
-    await new Promise((r) => setTimeout(r, 150));
-    afterHello(res.hello);
+    await enterWithToken(token);
   } else {
     step(1, 'Ready!');
     await new Promise((r) => setTimeout(r, 250));
