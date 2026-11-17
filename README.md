@@ -60,6 +60,24 @@ On first start the server creates the admin account `admin` / `admin12345`. Set 
 - The `i` button shows the paytable.
 
 
+## RTP simulation
+
+`tools/rtp-sim.js` replays the certified math for every game locally, using the same provably-fair
+outcome functions as the server (`shared/fair.js`) with a deterministic byte stream. It writes
+nothing: no server, no database, no wallet.
+
+```bash
+npm run sim-rtp                       # every configured room at its live RTP
+npm run sim-rtp:sweep                 # every game at 92 / 94 / 96 %
+node tools/rtp-sim.js --rounds 5000000 --json
+```
+
+Fish tables are simulated for three player aims (`random`, `small`, `boss`); every aim must converge
+on the room RTP because capture chance is `rtp / Σ expected multipliers`. Slots are compared with the
+exact RTP enumerated from their reel strips. Each row prints the simulated RTP, its 95% confidence
+interval, the theoretical value, hit rate and the largest win seen. The run exits non-zero if any row
+is more than 4σ from theory.
+
 ## Layout
 
 ```

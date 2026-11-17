@@ -8,7 +8,9 @@
     "start": "node server/src/index.js",
     "dev": "node --watch server/src/index.js",
     "seed": "node server/src/seed.js",
-    "prune-rounds": "node server/src/prune.js"
+    "prune-rounds": "node server/src/prune.js",
+    "sim-rtp": "node tools/rtp-sim.js",
+    "sim-rtp:sweep": "node tools/rtp-sim.js --sweep --rounds 2000000"
   },
   "engines": {
     "node": ">=22.13"
